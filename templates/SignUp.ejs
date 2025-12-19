@@ -134,7 +134,7 @@
                 <label for="u">Username</label>
                 <input name="username" id="u" placeholder="Choose a username" required>
             </div>
-
+            <input type="hidden" name="csrf" value = "<%= csrf %>"></input>
             <div>
                 <label for="p">Password</label>
                 <input type="password" name="password" id="p" placeholder="Create a password" required>

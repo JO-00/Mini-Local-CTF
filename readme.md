@@ -17,6 +17,7 @@ Passwords are hashed using `bcrypt`, and session management is handled with `exp
 - **Account deletion**
 - **Flash messages** for success/error notifications
 - **SQLite database** for storing users
+- **Security Features** Implementation of `CSRF` and `JWT`
 
 ---
 ## Prerequisites

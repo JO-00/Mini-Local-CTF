@@ -1,24 +1,19 @@
 // @ts-check
 const express = require("express")
-const session = require("express-session")
 const database = require("sqlite3")
-const flash = require("connect-flash")
 const bcrypt = require("bcrypt")
+const jwt = require("jsonwebtoken")
 const app = express()
-app.set("view engine","ejs")
-app.set("views",'./templates')
-app.use(express.urlencoded({extended:true}))
-app.use(express.json())
 
-app.use(session({
-    secret:"password"
-}))
-app.use(flash())
-app.use((req,res,next)=>{
-    res.locals.flash = req.flash()
-    res.locals.user = req.session.username
-    next()
-})
+require("dotenv").config()
+
+const {default_middlewares,custom_middlewares,my_routes} = require("./middlewares.js");
+
+default_middlewares(app);
+custom_middlewares(app);
+my_routes(app);
+
+const jwt_key = process.env.SECRET_KEY || "my_jwt_key"
 
 const db = new database.Database('./users.db')
 
@@ -40,12 +35,13 @@ app.get("/", (req, res) => {
 app.get("/signup",(req,res)=>{
     let success = res.locals.flash.success;
     let error = res.locals.flash.error;
+    let csrf = res.locals.csrfToken;
     if (req.session.username){
         req.flash("error","Already Logged in !")
         return res.redirect("/")
     }
     res.render("SignUp.ejs",{
-        success,error
+        success,error,csrf
     })
     
 })
@@ -74,6 +70,14 @@ app.post("/signup", async (req, res) => {
                     return res.redirect("/signup");
                 }
                 req.session.username = username;
+                let token = jwt.sign({
+                username:username,
+                role : "user"
+            },
+            jwt_key,
+            {algorithm:"HS256",expiresIn : "1h"}
+        )
+        res.cookie("JWT",token)
                 req.flash("success", `User ${username} successfully added!`);
                 return res.redirect("/");
             }
@@ -89,12 +93,13 @@ app.post("/signup", async (req, res) => {
 app.get("/login",(req,res)=>{
     let success = res.locals.flash.success;
     let error = res.locals.flash.error;
+    let csrf = res.locals.csrfToken;
     if (req.session.username){
         req.flash("error",`Already logged in as ${req.session.username}`);
         return res.redirect("/");
     }
     res.render("login.ejs",{
-        success,error
+        success,error,csrf
     })
 })
 
@@ -132,6 +137,14 @@ app.post("/login",(req,res)=>{
 
             req.session.username = username;
             req.flash("success", "Logged in successfully!");
+            let token = jwt.sign({
+                username:row.username,
+                role : row.role
+            },
+            jwt_key,
+            {algorithm:"HS256",expiresIn : "1h"}
+        )
+            res.cookie("JWT",token)
             return res.redirect("/");
         });
 
@@ -153,7 +166,9 @@ app.get("/delete-account", (req, res) => {
         req.flash("error", "You're not logged in");
         return res.redirect("/");
     }
-    res.render("delete-account");
+    let csrf = res.locals.csrfToken;
+    
+    res.render("delete",{csrf});
 });
 
 app.post("/delete-account",(req,res)=>{
@@ -165,7 +180,8 @@ app.post("/delete-account",(req,res)=>{
         req.flash("success","Successfully Deleted Account");
         req.session.destroy(err => {
             if (err) req.flash("error",err.message)
-    })
+        })
+        res.clearCookie("JWT");
         return res.redirect("/")
     })
 })
@@ -177,13 +193,15 @@ app.get("/logout", (req, res) => {
         req.flash("error", "You're not logged in");
         return res.redirect("/");
     }
-    res.render("logout");
+    let csrf = res.locals.csrfToken;
+    res.render("logout",{csrf});
 });
 
 app.post("/logout",(req,res)=>{
     req.session.destroy(err=>{
         if (err) req.flash("error",err.message);
     })
+    res.clearCookie("JWT")
     return res.redirect("/")
 })
 
